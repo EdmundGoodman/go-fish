@@ -14,6 +14,7 @@ class Player:
         if card in self._cardsHeld:
             self._cardHeld.remove(card)
             self._cardsNotHeld.add(card)
+            #Some way of tracking cards around to see if faces held can be decremented?
             return card
         else:
             return None
@@ -39,7 +40,21 @@ class Player:
             self._setsWon.add(faceOfSet)
             self._facesHeld.remove
             for suit in Suits:
-                self._cardsHeld.add()"""
+                self._cardsHeld.add()
+
+
+    def updateFacesWon(self):
+        cardFacesList = [card.face for card in self._cardsHeld]
+        for face in set(cardFacesList):
+            #If full set of one face is held
+            if cardFacesList.count(face) == 4:
+                #Put the face in the list of face sets won, and remove all the
+                #cards of that face from the player's hand
+                self._facesWon.add(face)
+                for suit in Suits:
+                    self._cardsHeld.remove(Card(face, suit))
+
+                """
 
     def __str__(self):
         out =  "{}:\n".format(self.name)
@@ -66,12 +81,35 @@ class You(Player):
 
 class Game:
     def __init__(self):
-        self.cardsInHand = 3
-        self.players = []
+        self.deck = Deck()
+
+    def start(numPlayers, numCardslkj):
+        self.players = self.getPlayers(numPlayers, numCards)
+
+    def getPlayers(self, numPlayers, numCards):
+        """Enter your cards and position, then initialise all the players
+        in the data structures"""
+        players = []
+
+        #Enter your cards and your position in the course of play
+        yourCards = self.getYourCards()
+        yourPosition = self.getYourPosition()
+
+        #Create players in order of the course of play, indcluding you
+        for i in range(numPlayers):
+            if i == yourPosition-1:
+                players.append(You(yourCards))
+            else:
+                playerName = input("Enter player {}'s name: ".format(i+1))
+                players.append(Player(playerName))
+        return players
 
 
 if __name__=="__main__":
-    p = Player("Edmund")
+
+    g = Game()
+
+    """p = Player("Edmund")
     p._cardsHeld.update(set([
         Card(Faces.ACE, Suits.HEARTS),
         Card(Faces.ACE, Suits.SPADES),
@@ -86,4 +124,4 @@ if __name__=="__main__":
     p._setsWon.update(set([
         Faces.NINE
     ]))
-    print(p)
+    print(p)"""
