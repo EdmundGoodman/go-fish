@@ -10,7 +10,7 @@ class Player:
         # Each player has a dictionary of card faces indexing 2-tuples of
         # the minimum and maximum possible number of that face they can hold in
         # their hand
-        self.face_ranges = {i:[0,4] for i in Faces}
+        self.face_ranges = {i:[0,3] for i in Faces}
 
     def __iter__(self):
         """Create an iterator for the face ranges"""
@@ -26,13 +26,14 @@ class Player:
         self.face_ranges[face] = face_range
 
     def __repr__(self):
+        """Display the players name as its string representation"""
         return self.name
 
 class You(Player):
     def __init__(self, hand_size):
         """Initialise yourself as a player, entering your hand to the system"""
         super().__init__("Enter your name: ")
-        # Enter you hand into the system, as you can see it
+        # Enter your hand into the system, as you can see it
 
         # Start with both max and min at 0, not 4 and 0 respectively as we
         # know the values of all the cards
@@ -58,20 +59,20 @@ class You(Player):
 
 
 class Game:
-    def __init__(self, hand_size=5):
+    def __init__(self):
         """Initialise the game"""
-        self.hand_size = hand_size
-        self.players = self.get_players()
+        self.you, self.players = self.get_players()
         self.piles = {}
 
     def get_players(self):
         """Form a data structure containing the players"""
-        make_players = [You(self.hand_size)]
+        hand_size = int(input("Enter the number of cards in your hand: "))
+        make_players = [You(hand_size)]
         while True:
             make_players.append(Player())
             if Game._enter_yes_no("Have all the players been added (y/n) "):
                 break
-        return {player.name:player for player in make_players}
+        return make_players[0], {player.name:player for player in make_players}
 
     def _enter_player_name(self, prompt):
         """Repeatedly prompt for the name of a player until one is entered"""
@@ -106,22 +107,110 @@ class Game:
                 return False
             print("Please enter either 'y' or 'n'")
 
+    def show_table(self):
+        """Show a tabulated version of the data being recorded"""
+        width = max([len(player) for player in self.players]) + 2
+        horizontal_bar = "+-----+" + ("-"*width+"+")*len(self.players)
+
+        # Print the header with the names in
+        print(horizontal_bar)
+        print("|     ", end="|")
+        for player in self.players:
+            print(player.center(width), end="|")
+        print("\n"+horizontal_bar)
+
+        # Print the data about each face for each player
+        for face in Faces:
+            print("|{}".format(Card.LOOKUP_FACE_CHAR[face].center(5)), end="|")
+            for player_range in self.players.values():
+                value = player_range[face]
+                if value == [0,0]:
+                    # Card known to be absent
+                    string = "-"
+                elif value == [-1,-1]:
+                    # Pile known to be made
+                    string = "#"
+                elif value[0] == 0:
+                    # No information on how many cards held
+                    string = "?"
+                else:
+                    # Positive information on minimum cards held
+                    string = str(value[0]) #" - ".join(map(str, value))
+                print(string.center(width), end="|")
+            print()
+        print(horizontal_bar)
+
+
+    def show_piles(self):
+        """Show the final piles accrued by each player over the game"""
+        for player in self.players:
+            if player in self.piles:
+                print("{} has the piles: {}".format(player, self.piles[player]))
+            else:
+                print("{} has no piles".format(player))
+
+    def suggested_move(self):
+        """Suggest a move to play for the player stored at `self.you`
+
+        If you know where all of one face is and have one, you should take them
+
+        Otherwise, you should always use the same card of which you have fewest
+        to probe other people, so a minimal number of your cards are known
+        """
+        # Your player is always the first in the players list
+        #you, others = , self.players.values()[1:]
+
+        # If the sum of the minimum number of faces of a card is equal to four,
+        # and the card can be is owned by us, take it from everyone
+        for face in Faces:
+            player_minimums = {}
+            for player in self.players:
+                player_minimums[player] = self.players[player][face][0]
+            if sum(player_minimums.values()) == 4:
+                possibilities = player_minimums.keys()
+                flag = self.you in possibilities
+                possibilities.remove(self.you)
+                if len(possibilities) >= 1 and flag:
+                    return face, Card.LOOKUP_FACE_CHAR[possibilities[0]]
+
+        """
+        Could be improved with some idea of statefulness?
+
+        Consider the case where one card of a face is used to search, then
+        someone eventually has to give you more of that card. Switching to
+        search with a different single face card is ill-advised, as someone
+        will take the multiple cards unless you take a pile first
+        """
+
+        # Otherwise, use the same card with the smallest value repeatedly to search
+        min_face = None
+        min_num = 5
+        for face in Faces:
+            num_tuple = self.players[self.you.name][face]
+            if num_tuple[0] < min_num and num_tuple[0] > 0:
+                min_face = face
+        return Card.LOOKUP_FACE_CHAR[min_face], "anyone"
+
+
     def play(self):
         """Play the game until it is over, tracking over player's moves, and
         suggesting ones for you"""
+
         while len(self.piles) < 12:
+            self.show_table()
+
             player = self._enter_player_name(
                                     "Enter the name of the current player: ")
 
             if isinstance(self.players[player], You):
                 # Generate a good idea for your go
-                print("It's your go!")
+                card, person = self.suggested_move()
+                print("Try asking {} for a {}".format(person, card))
 
             # Take the turn as an input
             target = self._enter_player_name(
                                     "Enter the name of the player to ask: ")
-            face = Game._enter_face("Enter the letter of face guessed: ")
-
+            face = Game._enter_face("Enter the face guessed: ")
 
             # The target must either not have or proceed to lose all of the
             # cards of the guessed face
@@ -132,6 +221,7 @@ class Game:
                 if Game._enter_yes_no("Was a pile made (y/n) "):
                     # A pile was made, discarding the face from the game
                     self.piles[player] = face
+                    self.players[player][face] = [-1,-1]
                 else:
                     # A number of cards of that face were transferred
                     num_cards = int(input("How many cards were passed over: "))
@@ -147,7 +237,11 @@ class Game:
                 # card of that face to ask, but only add it in if the presumed
                 # minimum before was zero, as that could overflow the structure
                 if self.players[player][face][0] == 0:
-                    self.players[face][0] = 1
+                    self.players[player][face][0] = 1
+
+
+        # Show who won each pile
+        self.show_piles()
 
 
 
