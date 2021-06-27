@@ -3,6 +3,68 @@
 
 from card_deck import Card, Faces, CardError
 
+
+
+
+
+
+
+class SafeInputs:
+    @staticmethod
+    def yes_no_input(prompt="Enter yes or no (y/n) "):
+        while True:
+            out = str(input(prompt)).lower()
+            if out == "y":
+                return True
+            elif out == "n":
+                return False
+            print("Enter either 'y' or 'n'")
+
+    @staticmethod
+    def enter_string_from_list(items, prompt, fail_prompt):
+        while True:
+            string = str(input(prompt))
+            if string in items:
+                return string
+            print(fail_prompt)
+
+    @staticmethod
+    def _general_cast_checker(prompt, fail_prompt, cast_function, cast_error):
+        while True:
+            try:
+                return cast_function(input(prompt))
+            except cast_error:
+                print(fail_prompt)
+
+    @staticmethod
+    def int_input(prompt="Enter a number: "):
+        return SafeInputs._general_cast_checker(
+            prompt, "Enter a valid number",
+            lambda x: int(x), ValueError
+        )
+
+    @staticmethod
+    def face_input(prompt="Enter a card face: "):
+        return SafeInputs._general_cast_checker(
+            prompt, "Enter a valid face",
+            lambda x: Card.get_face_from_typeable_name(str(x)), CardError
+        )
+
+    @staticmethod
+    def card_input(prompt="Enter a card: "):
+        return SafeInputs._general_cast_checker(
+            prompt, "Enter a valid card",
+            lambda x: Card.get_from_typeable_name(str(x)), CardError
+        )
+
+
+
+
+
+
+
+
+
 class Player:
     def __init__(self, name_prompt="Enter the player's name: "):
         """Initialise a player"""
@@ -30,16 +92,17 @@ class Player:
         return self.name
 
 class You(Player):
-    def __init__(self, hand_size):
+    def __init__(self):
         """Initialise yourself as a player, entering your hand to the system"""
         super().__init__("Enter your name: ")
+        hand_size = int(input("Enter the number of cards in your hand: "))
         # Enter your hand into the system, as you can see it
 
         # Start with both max and min at 0, not 4 and 0 respectively as we
         # know the values of all the cards
         self.face_ranges = {i:[0,0] for i in Faces}
         for i in range(hand_size):
-            face = Game._enter_face(
+            face = SafeInputs.face_input(
                     "Enter the letter of face #{} in your hand: ".format(i+1))
             self.face_ranges[face][0] += 1
             self.face_ranges[face][1] += 1
@@ -66,46 +129,12 @@ class Game:
 
     def get_players(self):
         """Form a data structure containing the players"""
-        hand_size = int(input("Enter the number of cards in your hand: "))
-        make_players = [You(hand_size)]
+        make_players = [You()]
         while True:
             make_players.append(Player())
-            if Game._enter_yes_no("Have all the players been added (y/n) "):
+            if SafeInputs.yes_no_input("Are all players to added (y/n) "):
                 break
         return make_players[0], {player.name:player for player in make_players}
-
-    def _enter_player_name(self, prompt):
-        """Repeatedly prompt for the name of a player until one is entered"""
-        while True:
-            player_name = str(input(prompt))
-            if player_name in self.players:
-                break
-            print("Please enter a valid player name")
-        return player_name
-
-    @staticmethod
-    def _enter_face(prompt):
-        """Repeatedly prompt for the typeable letter name of face until one
-        is entered"""
-        while True:
-            #TODO: Remove this in next release of card_deck
-            name = str(input(prompt)).upper()
-            try:
-                return Card.get_face_from_typeable_name(name)
-            except CardError:
-                print("Please enter a valid face: ")
-
-    @staticmethod
-    def _enter_yes_no(prompt):
-        """Take a string and convert it to a boolean by repeatedly prompting
-        until either the character 'y' or 'n' respectively is entered"""
-        while True:
-            out = str(input(prompt)).lower()
-            if out == "y":
-                return True
-            elif out == "n":
-                return False
-            print("Please enter either 'y' or 'n'")
 
     def show_table(self):
         """Show a tabulated version of the data being recorded"""
@@ -140,7 +169,6 @@ class Game:
             print()
         print(horizontal_bar)
 
-
     def show_piles(self):
         """Show the final piles accrued by each player over the game"""
         for player in self.players:
@@ -161,29 +189,35 @@ class Game:
         while len(self.piles) < 12:
             self.show_table()
 
-            player = self._enter_player_name(
-                                    "Enter the name of the current player: ")
-
+            # Take the turn as an input
+            player = SafeInputs.enter_string_from_list(
+                self.players,
+                "Enter the name of the current player: ",
+                "Enter a valid player name"
+            )
             if isinstance(self.players[player], You):
                 card, person = self.suggested_move()
                 #print("Try asking {} for a {}".format(person, card))
 
-            # Take the turn as an input
-            target = self._enter_player_name(
-                                    "Enter the name of the player to ask: ")
-            face = Game._enter_face("Enter the face guessed: ")
+            target = SafeInputs.enter_string_from_list(
+                self.players,
+                "Enter the name of the player to ask: ",
+                "Enter a valid player name"
+            )
+            face = SafeInputs.face_input("Enter the face guessed: ")
 
             # The target must either not have or proceed to lose all of the
             # cards of the guessed face
             self.players[target][face] = [0,0]
 
-            if Game._enter_yes_no("Was the guess correct (y/n) "):
+            if SafeInputs.yes_no_input("Was the guess correct (y/n) "):
                 # The guess made was correct
-                if Game._enter_yes_no("Was a pile made (y/n) "):
+                if SafeInputs.yes_no_input("Was a pile made (y/n) "):
                     # A pile was made, discarding the face from the game
                     self.piles[player] = face
                     for each_player in self.players:
-                        self.players[each_player][face] = [-1,-1]
+                        self.players[each_player][face] = [0,0]
+                    self.players[player][face] = [-1,-1]
                 else:
                     # A number of cards of that face were transferred
                     num_cards = int(input("How many cards were passed over: "))
