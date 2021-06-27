@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from card_deck import Card, Faces, CardError
-
+from os import system
 
 
 
@@ -12,6 +12,8 @@ from card_deck import Card, Faces, CardError
 class SafeInputs:
     @staticmethod
     def yes_no_input(prompt="Enter yes or no (y/n) "):
+        """Repeatedly query for a yes or no input, until one is given, then
+        return the appropriate boolean"""
         while True:
             out = str(input(prompt)).lower()
             if out == "y":
@@ -22,6 +24,7 @@ class SafeInputs:
 
     @staticmethod
     def enter_string_from_list(items, prompt, fail_prompt):
+        """Given a list, repeatedly query until an item within in is given"""
         while True:
             string = str(input(prompt))
             if string in items:
@@ -30,6 +33,8 @@ class SafeInputs:
 
     @staticmethod
     def _general_cast_checker(prompt, fail_prompt, cast_function, cast_error):
+        """Repeatedly take an input until one that can be cast to a provided
+        type is given"""
         while True:
             try:
                 return cast_function(input(prompt))
@@ -38,6 +43,7 @@ class SafeInputs:
 
     @staticmethod
     def int_input(prompt="Enter a number: "):
+        """Ensure an integer is given without crashing on erroneous data"""
         return SafeInputs._general_cast_checker(
             prompt, "Enter a valid number",
             lambda x: int(x), ValueError
@@ -45,6 +51,7 @@ class SafeInputs:
 
     @staticmethod
     def face_input(prompt="Enter a card face: "):
+        """Ensure an card face is given without crashing on erroneous data"""
         return SafeInputs._general_cast_checker(
             prompt, "Enter a valid face",
             lambda x: Card.get_face_from_typeable_name(str(x)), CardError
@@ -52,6 +59,7 @@ class SafeInputs:
 
     @staticmethod
     def card_input(prompt="Enter a card: "):
+        """Ensure an card is given without crashing on erroneous data"""
         return SafeInputs._general_cast_checker(
             prompt, "Enter a valid card",
             lambda x: Card.get_from_typeable_name(str(x)), CardError
@@ -95,7 +103,8 @@ class You(Player):
     def __init__(self):
         """Initialise yourself as a player, entering your hand to the system"""
         super().__init__("Enter your name: ")
-        hand_size = int(input("Enter the number of cards in your hand: "))
+        hand_size = SafeInputs.int_input(
+                                    "Enter the number of cards in your hand: ")
         # Enter your hand into the system, as you can see it
 
         # Start with both max and min at 0, not 4 and 0 respectively as we
@@ -129,16 +138,16 @@ class Game:
 
     def get_players(self):
         """Form a data structure containing the players"""
+        num_players = SafeInputs.int_input(
+                                "How many players (including you) are there: ")
         make_players = [You()]
-        while True:
-            make_players.append(Player())
-            if SafeInputs.yes_no_input("Are all players to added (y/n) "):
-                break
+        for i in range(1,num_players):
+            make_players.append(Player("Enter player #{}'s name: ".format(i)))
         return make_players[0], {player.name:player for player in make_players}
 
     def show_table(self):
         """Show a tabulated version of the data being recorded"""
-        width = max([len(player) for player in self.players]) + 2
+        width = max([len(player) for player in self.players]+[3]) + 2
         horizontal_bar = "+-----+" + ("-"*width+"+")*len(self.players)
 
         # Print the header with the names in
@@ -156,15 +165,16 @@ class Game:
                 if value == [0,0]:
                     # Card known to be absent
                     string = "-"
-                elif value == [-1,-1]:
+                elif value == [4,4]:
                     # Pile known to be made
                     string = "#"
-                elif value[0] == 0:
-                    # No information on how many cards held
-                    string = " "
+                elif value[0] == value[1]:
+                    # If the number of cards held is known, don't print both
+                    # minimum and maximum, as they are the same
+                    string = str(value[0])
                 else:
-                    # Positive information on minimum cards held
-                    string = str(value[0]) #" - ".join(map(str, value))
+                    # Print any positive information on number of cards held
+                    string = "-".join(map(str, value))
                 print(string.center(width), end="|")
             print()
         print(horizontal_bar)
@@ -187,6 +197,8 @@ class Game:
         suggesting ones for you"""
 
         while len(self.piles) < 12:
+            # Display the collected information about the current game state
+            system("clear")
             self.show_table()
 
             # Take the turn as an input
@@ -215,25 +227,54 @@ class Game:
                 if SafeInputs.yes_no_input("Was a pile made (y/n) "):
                     # A pile was made, discarding the face from the game
                     self.piles[player] = face
-                    for each_player in self.players:
-                        self.players[each_player][face] = [0,0]
-                    self.players[player][face] = [-1,-1]
+                    for each_player in self.players.values():
+                        each_player[face] = [0,0]
+                    self.players[player][face] = [4,4]
                 else:
                     # A number of cards of that face were transferred
-                    num_cards = int(input("How many cards were passed over: "))
-                    offset = 0
-                    if self.players[player][face][0] == 0:
-                        # The player must have had one card of that face to ask,
-                        # but only add it in if the presumed minimum before was
-                        # zero, as that could overflow the structure
-                        offset = 1
-                    self.players[player][face][0] += num_cards + offset
+                    num_cards = SafeInputs.int_input(
+                                            "How many cards were passed over: ")
+                    # The player must have had one card of that face to ask,
+                    # but only add it in if the presumed minimum before was
+                    # zero, as that could overflow the structure
+                    player_obj = self.players[player]
+                    offset = 1 if player_obj[face][0] == 0 else 0
+                    flag = player_obj[face][0] == player_obj[face][1]
+                    player_obj[face][0] += num_cards + offset
+                    # If the value is already known, we want to increment the
+                    # max (which is equal to the min) as well
+                    if flag:
+                        player_obj[face][1] = player_obj[face][0]
             else:
                 # No cards were passed over, but the player must have had one
                 # card of that face to ask, but only add it in if the presumed
                 # minimum before was zero, as that could overflow the structure
                 if self.players[player][face][0] == 0:
                     self.players[player][face][0] = 1
+
+            # The max a player can have is the the total number of faces
+            # subtract the minimum of all of the other players minimum
+            # for that face, so update it each time a transfer is made
+            sum_player_mins = sum([
+                each_player[face][0] for each_player in self.players.values()
+            ])
+            for each_player in self.players.values():
+                # Don't change maximums on players known to not have card
+                if each_player[face][0] != each_player[face][1]:
+                    each_player[face][1] = ((4 - sum_player_mins)
+                                            + each_player[face][0])
+
+            # If all other players have known cards, we can infer the number
+            # of the final player
+            for face in Faces:
+                num_known_values, last_unknown_player = 0, None
+                for each_player in self.players.values():
+                    if each_player[face][0] == each_player[face][1]:
+                        num_known_values += 1
+                    else:
+                        last_unknown_player = each_player
+                if num_known_values == len(self.players)-1:
+                    last_unknown_player[face][0] = last_unknown_player[face][1]
 
 
         # Show who won each pile
@@ -242,5 +283,13 @@ class Game:
 
 
 if __name__ == "__main__":
+    system("clear")
     g = Game()
-    g.play()
+    try:
+        g.play()
+    except KeyboardInterrupt:
+        # If the program is ended, still show the piles accumulated up to this
+        # point in case it doesn't end properly, and we go to round two :angry:
+        # before the while loop breaks
+        print()
+        g.show_piles()
