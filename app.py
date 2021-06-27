@@ -132,7 +132,7 @@ class Game:
                     string = "#"
                 elif value[0] == 0:
                     # No information on how many cards held
-                    string = "?"
+                    string = " "
                 else:
                     # Positive information on minimum cards held
                     string = str(value[0]) #" - ".join(map(str, value))
@@ -150,46 +150,8 @@ class Game:
                 print("{} has no piles".format(player))
 
     def suggested_move(self):
-        """Suggest a move to play for the player stored at `self.you`
-
-        If you know where all of one face is and have one, you should take them
-
-        Otherwise, you should always use the same card of which you have fewest
-        to probe other people, so a minimal number of your cards are known
-        """
-        # Your player is always the first in the players list
-        #you, others = , self.players.values()[1:]
-
-        # If the sum of the minimum number of faces of a card is equal to four,
-        # and the card can be is owned by us, take it from everyone
-        for face in Faces:
-            player_minimums = {}
-            for player in self.players:
-                player_minimums[player] = self.players[player][face][0]
-            if sum(player_minimums.values()) == 4:
-                possibilities = player_minimums.keys()
-                flag = self.you in possibilities
-                possibilities.remove(self.you)
-                if len(possibilities) >= 1 and flag:
-                    return face, Card.LOOKUP_FACE_CHAR[possibilities[0]]
-
-        """
-        Could be improved with some idea of statefulness?
-
-        Consider the case where one card of a face is used to search, then
-        someone eventually has to give you more of that card. Switching to
-        search with a different single face card is ill-advised, as someone
-        will take the multiple cards unless you take a pile first
-        """
-
-        # Otherwise, use the same card with the smallest value repeatedly to search
-        min_face = None
-        min_num = 5
-        for face in Faces:
-            num_tuple = self.players[self.you.name][face]
-            if num_tuple[0] < min_num and num_tuple[0] > 0:
-                min_face = face
-        return Card.LOOKUP_FACE_CHAR[min_face], "anyone"
+        """Suggest a move to play for the player stored at `self.you`"""
+        return "face", "anyone"
 
 
     def play(self):
@@ -203,9 +165,8 @@ class Game:
                                     "Enter the name of the current player: ")
 
             if isinstance(self.players[player], You):
-                # Generate a good idea for your go
                 card, person = self.suggested_move()
-                print("Try asking {} for a {}".format(person, card))
+                #print("Try asking {} for a {}".format(person, card))
 
             # Take the turn as an input
             target = self._enter_player_name(
@@ -221,7 +182,8 @@ class Game:
                 if Game._enter_yes_no("Was a pile made (y/n) "):
                     # A pile was made, discarding the face from the game
                     self.piles[player] = face
-                    self.players[player][face] = [-1,-1]
+                    for each_player in self.players:
+                        self.players[each_player][face] = [-1,-1]
                 else:
                     # A number of cards of that face were transferred
                     num_cards = int(input("How many cards were passed over: "))
